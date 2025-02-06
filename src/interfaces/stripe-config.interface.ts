@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 
 export interface StripeConfig {
-    apiKey: string;
-    webhookSecret?: string;
-    apiVersion?: Stripe.LatestApiVersion;
+    apiKey: string | undefined;
+    webhookSecret?: string | undefined;
+    apiVersion?: Stripe.LatestApiVersion | undefined;
 }
