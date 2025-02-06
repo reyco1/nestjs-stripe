@@ -12,6 +12,8 @@ npx install @reyco1/nestjs-stripe
 
 1. Import the StripeModule in your app.module.ts:
 
+### Synchronous Configuration
+
 ```typescript
 import { StripeModule } from '@reyco1/nestjs-stripe';
 
@@ -20,7 +22,56 @@ import { StripeModule } from '@reyco1/nestjs-stripe';
     StripeModule.forRoot({
       apiKey: 'your_stripe_secret_key',
       webhookSecret: 'your_webhook_secret', // optional
-      apiVersion: '2023-10-16', // optional, defaults to '2023-10-16'
+      apiVersion: '2025-01-27.acacia', // optional, defaults to '2025-01-27.acacia'
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+### Asynchronous Configuration
+
+You can use `forRootAsync()` to load your Stripe configuration from a ConfigService:
+
+```typescript
+import { StripeModule } from '@reyco1/nestjs-stripe';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot(),
+    StripeModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        apiKey: configService.get('STRIPE_SECRET_KEY'),
+        webhookSecret: configService.get('STRIPE_WEBHOOK_SECRET'),
+        apiVersion: configService.get('STRIPE_API_VERSION'),
+      }),
+      inject: [ConfigService],
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+You can also use `useClass` or `useExisting`:
+
+```typescript
+// Using useClass
+@Injectable()
+class StripeConfigService implements StripeOptionsFactory {
+  createStripeOptions(): StripeConfig {
+    return {
+      apiKey: process.env.STRIPE_SECRET_KEY,
+      webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+    };
+  }
+}
+
+@Module({
+  imports: [
+    StripeModule.forRootAsync({
+      useClass: StripeConfigService,
     }),
   ],
 })
