@@ -1,15 +1,36 @@
+#!/usr/bin/env node
+
 // scripts/post-install.js
 const fs = require('fs');
 const path = require('path');
 
+console.log('Post-install script started');
+
 // Skip postinstall script if package is installed as a dependency
 if (process.env.INIT_CWD !== process.cwd()) {
+    console.log('Skipping post-install script in dependency');
     process.exit(0);
 }
 
+console.log('Running post-install script...');
+console.log('Current working directory:', process.cwd());
+console.log('INIT_CWD:', process.env.INIT_CWD);
+
 function findAppModule() {
-    const startDir = path.join(__dirname, '..', '..', '..');
-    const appModulePath = path.join(startDir, 'src', 'app.module.ts');
+    console.log('Searching for app.module.ts...');
+    const possiblePaths = [
+        path.join(process.env.INIT_CWD, 'src', 'app.module.ts'),
+        path.join(process.cwd(), 'src', 'app.module.ts'),
+        path.join(__dirname, '..', '..', '..', 'src', 'app.module.ts')
+    ];
+
+    for (const appModulePath of possiblePaths) {
+        console.log('Checking path:', appModulePath);
+        if (fs.existsSync(appModulePath)) {
+            console.log('Found app.module.ts at:', appModulePath);
+            return appModulePath;
+        }
+    }
 
     if (fs.existsSync(appModulePath)) {
         return appModulePath;
