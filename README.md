@@ -1,3 +1,9 @@
+<div align="center">
+  <img src="https://nestjs.com/img/logo-small.svg" height="120" alt="Nest Logo" />
+  <img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" height="120" alt="Stripe Logo" style="margin-left: 20px" />
+
+</div>
+
 # @reyco1/nestjs-stripe 🚀
 
 A powerful NestJS module for Stripe integration that supports both one-time payments and subscriptions. This package provides a seamless way to integrate Stripe payment processing into your NestJS application.
