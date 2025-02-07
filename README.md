@@ -15,7 +15,7 @@ When installed, this package will:
 3. Add necessary environment variables to your `.env` and `.env.example` files:
    ```env
    STRIPE_API_KEY=your_stripe_secret_key
-   STRIPE_API_VERSION=2023-10-16
+   STRIPE_API_VERSION=your_stripe_api_version
    STRIPE_WEBHOOK_SECRET=your_webhook_secret
    ```
 
