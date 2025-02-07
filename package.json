@@ -1,13 +1,18 @@
 {
   "name": "@reyco1/nestjs-stripe",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A NestJS module for Stripe integration supporting one-time payments and subscriptions",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist/**/*",
+    "scripts/**/*"
+  ],
   "scripts": {
     "build": "tsc",
     "prepare": "npm run build",
-    "test": "jest"
+    "test": "jest",
+    "postinstall": "node ./scripts/post-install.js"
   },
   "keywords": [
     "nestjs",
