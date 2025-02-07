@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-// scripts/post-install.js
 const fs = require('fs');
 const path = require('path');
 
@@ -31,56 +30,32 @@ function findAppModule() {
             return appModulePath;
         }
     }
-
-    if (fs.existsSync(appModulePath)) {
-        return appModulePath;
-    }
     return null;
 }
 
 function addMissingImports(content) {
-    const requiredImports = {
-        configService: "import { ConfigService } from '@nestjs/config';",
-        stripe: "import { StripeModule } from '@reyco1/nestjs-stripe';"
-    };
-
     let newContent = content;
 
-    // Check for existing ConfigService import
-    const hasConfigModule = newContent.includes("ConfigModule");
-    const hasConfigService = newContent.includes("ConfigService");
-
-    // If ConfigModule exists but ConfigService doesn't, modify the existing import
-    if (hasConfigModule && !hasConfigService) {
+    // Check if ConfigService needs to be added to existing ConfigModule import
+    if (newContent.includes('ConfigModule') && !newContent.includes('ConfigService')) {
         newContent = newContent.replace(
             /import\s*{\s*ConfigModule\s*}\s*from\s*'@nestjs\/config'/,
             "import { ConfigModule, ConfigService } from '@nestjs/config'"
         );
     }
 
-    // Check stripe import and add if missing
-    Object.values(requiredImports).forEach(importStatement => {
-        // Skip ConfigService import if we already handled it above
-        if (importStatement.includes('ConfigService') && hasConfigService) {
-            return;
-        }
+    // Add StripeModule import if not present
+    if (!newContent.includes('@reyco1/nestjs-stripe')) {
+        // Find the last import statement
+        const lastImportIndex = newContent.lastIndexOf('import');
+        const lastImportEndIndex = newContent.indexOf(';', lastImportIndex) + 1;
 
-        // Extract the package name from import statement to check variations
-        const packageMatch = importStatement.match(/'([^']+)'/)[1];
-        if (!newContent.includes(packageMatch) ||
-            (importStatement.includes('ConfigService') && !hasConfigService)) {
-            // Find the last import statement
-            const lastImportIndex = newContent.lastIndexOf('import');
-            const lastImportEndIndex = newContent.indexOf(';', lastImportIndex) + 1;
-
-            // Add new import after the last import
-            newContent =
-                newContent.slice(0, lastImportEndIndex) +
-                '\n' +
-                importStatement +
-                newContent.slice(lastImportEndIndex);
-        }
-    });
+        // Add new import after the last import
+        newContent =
+            newContent.slice(0, lastImportEndIndex) +
+            '\nimport { StripeModule } from \'@reyco1/nestjs-stripe\';' +
+            newContent.slice(lastImportEndIndex);
+    }
 
     return newContent;
 }
@@ -92,8 +67,7 @@ function addStripeModuleToImports(content) {
         return content;
     }
 
-    const stripeModuleConfig = `
-    StripeModule.forRootAsync({
+    const stripeModuleConfig = `\n    StripeModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         apiKey: configService.get('STRIPE_API_KEY'),
@@ -102,48 +76,18 @@ function addStripeModuleToImports(content) {
       }),
     })`;
 
-    // Find the imports array
-    const importsMatch = content.match(/imports\s*:\s*\[([\s\S]*?)\]/);
+    // Find the imports array closing bracket
+    const importsMatch = content.match(/imports:\s*\[([\s\S]*?)\]/);
 
     if (importsMatch) {
-        const currentImports = importsMatch[1];
-        // Check if imports array is empty
-        const newImports = currentImports.trim()
-            ? `${currentImports}${currentImports.endsWith(',') ? '' : ','}${stripeModuleConfig},`
-            : stripeModuleConfig;
+        const currentImports = importsMatch[1].trim();
+        // Remove any trailing commas and add our module
+        const newImports = currentImports.replace(/,\s*$/, '') +
+            (currentImports ? ',' : '') +
+            stripeModuleConfig;
 
         return content.replace(
-            /imports\s*:\s*\[([\s\S]*?)\]/,
-            `imports: [${newImports}]`
-        );
-    }
-
-    return content;
-}
-
-function addConfigModule(content) {
-    // Check if ConfigModule is already in imports
-    if (content.includes('ConfigModule.forRoot')) {
-        console.log('ConfigModule configuration already exists');
-        return content;
-    }
-
-    const configModuleConfig = `
-    ConfigModule.forRoot({
-      isGlobal: true,
-    })`;
-
-    // Find the imports array and add ConfigModule if not present
-    const importsMatch = content.match(/imports\s*:\s*\[([\s\S]*?)\]/);
-
-    if (importsMatch) {
-        const currentImports = importsMatch[1];
-        const newImports = currentImports.trim()
-            ? `${currentImports}${currentImports.endsWith(',') ? '' : ','}${configModuleConfig},`
-            : configModuleConfig;
-
-        return content.replace(
-            /imports\s*:\s*\[([\s\S]*?)\]/,
+            /imports:\s*\[([\s\S]*?)\]/,
             `imports: [${newImports}]`
         );
     }
@@ -199,9 +143,6 @@ function updateAppModule() {
 
         // Add missing imports
         content = addMissingImports(content);
-
-        // Add ConfigModule if not present
-        content = addConfigModule(content);
 
         // Add StripeModule configuration
         content = addStripeModuleToImports(content);
