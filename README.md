@@ -1,84 +1,47 @@
-# @reyco1/nestjs-stripe
+# @reyco1/nestjs-stripe 🚀
 
-A NestJS module for Stripe integration that provides easy-to-use functionality for one-time payments and subscriptions.
+A powerful NestJS module for Stripe integration that supports both one-time payments and subscriptions. This package provides a seamless way to integrate Stripe payment processing into your NestJS application.
 
-## Installation
+## Overview 🛠️
+
+When installed, this package will:
+
+1. Add required imports to your `app.module.ts`:
+   - ConfigService from @nestjs/config
+   - StripeModule from @reyco1/nestjs-stripe
+
+2. Configure the StripeModule with async configuration using ConfigService
+
+3. Add necessary environment variables to your `.env` and `.env.example` files:
+   ```env
+   STRIPE_API_KEY=your_stripe_secret_key
+   STRIPE_API_VERSION=2023-10-16
+   STRIPE_WEBHOOK_SECRET=your_webhook_secret
+   ```
+
+## Features ✨
+
+- 💳 One-time payment processing
+- 🔄 Subscription management
+- 👥 Customer management
+- 🎣 Webhook handling
+- 📝 TypeScript support
+- 🔌 Auto-configuration setup
+- 🔧 Environment variables management
+
+## Installation 📦
 
 ```bash
-npx install @reyco1/nestjs-stripe
+# Install the package
+npm install @reyco1/nestjs-stripe
+
+# Run the configuration script (if automatic setup didn't run)
+npx @reyco1/nestjs-stripe
 ```
 
-## Usage
+## Usage 💡
 
-1. Import the StripeModule in your app.module.ts:
-
-### Synchronous Configuration
-
-```typescript
-import { StripeModule } from '@reyco1/nestjs-stripe';
-
-@Module({
-  imports: [
-    StripeModule.forRoot({
-      apiKey: 'your_stripe_secret_key',
-      webhookSecret: 'your_webhook_secret', // optional
-      apiVersion: '2025-01-27.acacia', // optional, defaults to '2025-01-27.acacia'
-    }),
-  ],
-})
-export class AppModule {}
-```
-
-### Asynchronous Configuration
-
-You can use `forRootAsync()` to load your Stripe configuration from a ConfigService:
-
-```typescript
-import { StripeModule } from '@reyco1/nestjs-stripe';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-
-@Module({
-  imports: [
-    ConfigModule.forRoot(),
-    StripeModule.forRootAsync({
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        apiKey: configService.get('STRIPE_SECRET_KEY'),
-        webhookSecret: configService.get('STRIPE_WEBHOOK_SECRET'),
-        apiVersion: configService.get('STRIPE_API_VERSION'),
-      }),
-      inject: [ConfigService],
-    }),
-  ],
-})
-export class AppModule {}
-```
-
-You can also use `useClass` or `useExisting`:
-
-```typescript
-// Using useClass
-@Injectable()
-class StripeConfigService implements StripeOptionsFactory {
-  createStripeOptions(): StripeConfig {
-    return {
-      apiKey: process.env.STRIPE_SECRET_KEY,
-      webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
-    };
-  }
-}
-
-@Module({
-  imports: [
-    StripeModule.forRootAsync({
-      useClass: StripeConfigService,
-    }),
-  ],
-})
-export class AppModule {}
-```
-
-2. Inject and use the StripeService in your controllers/services:
+### Creating a One-Time Payment 💰
 
 ```typescript
 import { StripeService } from '@reyco1/nestjs-stripe';
@@ -91,54 +54,45 @@ export class PaymentService {
     const payment = await this.stripeService.createPaymentIntent({
       amount: 1000, // amount in cents
       currency: 'usd',
+      metadata: {
+        userId: '123',
+        orderId: 'ORDER_123'
+      }
     });
     return payment;
   }
+}
+```
+
+### Managing Subscriptions 📅
+
+```typescript
+@Injectable()
+export class SubscriptionService {
+  constructor(private readonly stripeService: StripeService) {}
 
   async createSubscription(customerId: string, priceId: string) {
     const subscription = await this.stripeService.createSubscription({
       customerId,
       priceId,
+      metadata: {
+        userId: '123',
+        plan: 'premium'
+      }
     });
     return subscription;
   }
 }
 ```
 
-## Features
-
-- One-time payments
-- Subscriptions
-- Customer management
-- Webhook handling
-- TypeScript support
-- Full NestJS integration
-
-## API Documentation
-
-### StripeService Methods
-
-- `createPaymentIntent(data: CreatePaymentDto)`: Create a one-time payment
-- `createSubscription(data: CreateSubscriptionDto)`: Create a subscription
-- `createCustomer(email: string, name?: string)`: Create a Stripe customer
-- `cancelSubscription(subscriptionId: string)`: Cancel a subscription
-- `retrieveSubscription(subscriptionId: string)`: Get subscription details
-- `createWebhookEvent(payload: Buffer, signature: string, webhookSecret: string)`: Handle webhook events
-
-## Webhook Handling Example
-
-Here's how to handle webhooks and access metadata:
+### Handling Webhooks 🎣
 
 ```typescript
-import { Controller, Post, Headers, RawBodyRequest, Req } from '@nestjs/common';
-import { StripeService } from '@reyco1/nestjs-stripe';
-import Stripe from 'stripe';
-
 @Controller('stripe/webhooks')
 export class StripeWebhookController {
   constructor(
     private readonly stripeService: StripeService,
-    private readonly userService: UserService, // Your user service
+    private readonly userService: UserService,
   ) {}
 
   @Post()
@@ -153,24 +107,69 @@ export class StripeWebhookController {
     );
 
     switch (event.type) {
+      // Handle one-time payment success
       case 'payment_intent.succeeded': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        const userId = paymentIntent.metadata.userId;
+        // Access metadata from the payment intent
+        const { userId, orderId } = paymentIntent.metadata;
         
-        // Update user's payment status
-        await this.userService.updatePaymentStatus(userId, 'paid');
+        await this.userService.updatePayment({
+          userId,
+          orderId,
+          status: 'paid',
+          amount: paymentIntent.amount,
+          paymentIntentId: paymentIntent.id
+        });
         break;
       }
 
+      // Handle subscription created
       case 'customer.subscription.created': {
         const subscription = event.data.object as Stripe.Subscription;
-        const userId = subscription.metadata.userId;
-        
-        // Update user's subscription status
-        await this.userService.updateSubscription(userId, {
-          subscriptionId: subscription.id,
+        // Access metadata from the subscription
+        const { userId, plan } = subscription.metadata;
+
+        await this.userService.updateSubscription({
+          userId,
+          plan,
           status: subscription.status,
+          subscriptionId: subscription.id,
+          currentPeriodEnd: new Date(subscription.current_period_end * 1000)
         });
+        break;
+      }
+
+      // Handle subscription updated
+      case 'customer.subscription.updated': {
+        const subscription = event.data.object as Stripe.Subscription;
+        const { userId } = subscription.metadata;
+
+        await this.userService.updateSubscription({
+          userId,
+          status: subscription.status,
+          currentPeriodEnd: new Date(subscription.current_period_end * 1000)
+        });
+        break;
+      }
+
+      // Handle subscription cancelled/deleted
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object as Stripe.Subscription;
+        const { userId } = subscription.metadata;
+
+        await this.userService.cancelSubscription(userId);
+        break;
+      }
+
+      // Handle payment failure
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as Stripe.Invoice;
+        const subscription = await this.stripeService.retrieveSubscription(
+          invoice.subscription as string
+        );
+        const { userId } = subscription.metadata;
+
+        await this.userService.notifyPaymentFailure(userId);
         break;
       }
     }
@@ -180,32 +179,121 @@ export class StripeWebhookController {
 }
 ```
 
-Example usage with metadata:
+Here's an example of the UserService interface that would handle these webhook events:
 
 ```typescript
-// One-time payment with metadata
+interface UserService {
+  updatePayment(data: {
+    userId: string;
+    orderId: string;
+    status: string;
+    amount: number;
+    paymentIntentId: string;
+  }): Promise<void>;
+
+  updateSubscription(data: {
+    userId: string;
+    plan?: string;
+    status: string;
+    subscriptionId?: string;
+    currentPeriodEnd: Date;
+  }): Promise<void>;
+
+  cancelSubscription(userId: string): Promise<void>;
+  
+  notifyPaymentFailure(userId: string): Promise<void>;
+}
+```
+
+💡 **Key Points About Metadata**:
+
+1. When creating a payment or subscription, add metadata:
+```typescript
+// Creating payment with metadata
 const payment = await stripeService.createPaymentIntent({
   amount: 1000,
   currency: 'usd',
   metadata: {
-    userId: '123',
-    orderNumber: 'ORD-456',
-  },
-  description: 'Payment for Order #456',
+    userId: user.id,
+    orderId: order.id
+  }
 });
 
-// Subscription with metadata
+// Creating subscription with metadata
 const subscription = await stripeService.createSubscription({
-  customerId: 'cus_123',
-  priceId: 'price_456',
+  customerId: customer.id,
+  priceId: price.id,
   metadata: {
-    userId: '123',
-    plan: 'premium',
-  },
-  description: 'Premium Plan Subscription',
+    userId: user.id,
+    plan: 'premium'
+  }
 });
 ```
 
-## License
+2. Access metadata in webhooks:
+```typescript
+// In payment webhooks
+const { userId, orderId } = paymentIntent.metadata;
+
+// In subscription webhooks
+const { userId, plan } = subscription.metadata;
+```
+
+3. Best practices for metadata:
+- Always include `userId` to link back to your database
+- Keep metadata values simple and string-based
+- Don't store sensitive information in metadata
+- Use consistent keys across your application
+
+## API Reference 📚
+
+### StripeService Methods
+
+| Method | Description | Parameters | Returns |
+|--------|-------------|------------|---------|
+| `createPaymentIntent` | Create a one-time payment | `CreatePaymentDto` | `Promise<Stripe.PaymentIntent>` |
+| `createSubscription` | Create a subscription | `CreateSubscriptionDto` | `Promise<Stripe.Subscription>` |
+| `createCustomer` | Create a Stripe customer | `email: string, name?: string` | `Promise<Stripe.Customer>` |
+| `cancelSubscription` | Cancel a subscription | `subscriptionId: string` | `Promise<Stripe.Subscription>` |
+| `retrieveSubscription` | Get subscription details | `subscriptionId: string` | `Promise<Stripe.Subscription>` |
+| `createWebhookEvent` | Handle webhook events | `payload: Buffer, signature: string, webhookSecret: string` | `Promise<Stripe.Event>` |
+
+## Configuration Options ⚙️
+
+The StripeModule can be configured with the following options:
+
+```typescript
+StripeModule.forRootAsync({
+  inject: [ConfigService],
+  useFactory: (configService: ConfigService) => ({
+    apiKey: configService.get('STRIPE_API_KEY'),
+    apiVersion: configService.get('STRIPE_API_VERSION'),
+    webhookSecret: configService.get('STRIPE_WEBHOOK_SECRET'),
+  }),
+})
+```
+
+## Troubleshooting 🔍
+
+If the automatic configuration didn't run:
+
+1. Run it manually:
+   ```bash
+   npx @reyco1/nestjs-stripe
+   ```
+
+2. Check your environment variables are properly set in `.env`
+
+3. Ensure ConfigModule is properly imported in your app.module.ts
+
+## Contributing 🤝
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License 📄
 
 MIT
+
+---
+
+Made with ❤️ by Reyco1
