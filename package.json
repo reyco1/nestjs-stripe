@@ -1,10 +1,18 @@
 {
   "name": "@reyco1/nestjs-stripe",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "A NestJS module for Stripe integration supporting one-time payments and subscriptions",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": "./scripts/post-install.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reyco1/nestjs-stripe"
+  },
+  "bugs": {
+    "url": "https://github.com/reyco1/nestjs-stripe/issues"
+  },
+  "homepage": "https://github.com/reyco1/nestjs-stripe#readme",
   "files": [
     "dist/**/*",
     "scripts/**/*"
