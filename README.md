@@ -47,6 +47,46 @@ npx @reyco1/nestjs-stripe
 
 ## Usage 💡
 
+You can access Stripe in two ways:
+
+### Using the StripeService (recommended)
+
+#### Example Usage
+
+```typescript
+@Injectable()
+export class PaymentService {
+  constructor(private readonly stripeService: StripeService) {}
+  
+  async createPayment() {
+    return this.stripeService.createPaymentIntent({
+      amount: 1000,
+      currency: 'usd'
+    });
+  }
+}
+```
+
+### Injecting the raw Stripe client (for advanced use cases)
+
+#### Example Usage
+
+```typescript
+@Injectable()
+export class PaymentService {
+  constructor(
+    @Inject(STRIPE_CLIENT_TOKEN) private readonly stripeClient: Stripe
+  ) {}
+  
+  async createPayment() {
+    return this.stripeClient.paymentIntents.create({
+      amount: 1000,
+      currency: 'usd'
+    });
+  }
+}
+```
+
 ### Creating a One-Time Payment 💰
 
 ```typescript

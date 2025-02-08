@@ -1,6 +1,6 @@
 {
   "name": "@reyco1/nestjs-stripe",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "A NestJS module for Stripe integration supporting one-time payments and subscriptions",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
