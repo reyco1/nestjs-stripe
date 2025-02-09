@@ -38,10 +38,11 @@ export class StripeService {
     return subscription;
   }
 
-  async createCustomer(email: string, name?: string) {
+  async createCustomer(email: string, name?: string, metadata?: Record<string, string>) {
     const customer = await this.stripeClient.customers.create({
       email,
       name,
+      metadata,
     });
 
     return customer;

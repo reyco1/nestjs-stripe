@@ -1,9 +1,10 @@
+import { StripeModuleAsyncOptions, StripeOptionsFactory } from './interfaces/stripe-module-async-options.interface';
 import { STRIPE_CLIENT_TOKEN, STRIPE_CONFIG_TOKEN } from './stripe.constants';
 import { StripeConfig } from './interfaces/stripe-config.interface';
 import { DynamicModule, Module, Provider } from '@nestjs/common';
 import { StripeService } from './stripe.service';
+import { StripeUtils } from './utils/stripe.utils';
 import Stripe from 'stripe';
-import { StripeModuleAsyncOptions, StripeOptionsFactory } from './interfaces/stripe-module-async-options.interface';
 
 @Module({})
 export class StripeModule {
@@ -22,8 +23,16 @@ export class StripeModule {
 
     return {
       module: StripeModule,
-      providers: [stripeProvider, configProvider, StripeService],
-      exports: [StripeService],
+      providers: [
+        stripeProvider,
+        configProvider,
+        StripeService,
+        StripeUtils
+      ],
+      exports: [
+        StripeService,
+        StripeUtils
+      ],
       global: true,
     };
   }
@@ -46,8 +55,12 @@ export class StripeModule {
         ...this.createAsyncProviders(options),
         stripeProvider,
         StripeService,
+        StripeUtils
       ],
-      exports: [StripeService],
+      exports: [
+        StripeService,
+        StripeUtils
+      ],
       global: true,
     };
   }
