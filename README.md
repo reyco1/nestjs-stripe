@@ -15,11 +15,16 @@ A powerful NestJS module for Stripe integration that supports both one-time paym
   - [Features ✨](#features-)
   - [Installation 📦](#installation-)
   - [Basic Usage 💡](#basic-usage-)
-    - [1. Using StripeService (Core Operations)](#1-using-stripeservice-core-operations)
-    - [2. Using StripeUtils (Enhanced Data Handling)](#2-using-stripeutils-enhanced-data-handling)
-    - [3. Using Raw Stripe Client](#3-using-raw-stripe-client)
+    - [Using StripeService (Core Operations)](#using-stripeservice-core-operations)
+    - [Using StripeUtils (Enhanced Data Handling)](#using-stripeutils-enhanced-data-handling)
+    - [Using Raw Stripe Client](#using-raw-stripe-client)
   - [Configuration ⚙️](#configuration-️)
     - [Module Configuration](#module-configuration)
+  - [Checkout Sessions 🛍️](#checkout-sessions-️)
+    - [Payment Checkout](#payment-checkout)
+    - [Subscription Checkout](#subscription-checkout)
+    - [Customer Creation Behavior](#customer-creation-behavior)
+    - [Configuration Options](#configuration-options)
   - [Utility Methods 🛠️](#utility-methods-️)
     - [Customer Details](#customer-details)
     - [Payment Method Details](#payment-method-details)
@@ -30,7 +35,6 @@ A powerful NestJS module for Stripe integration that supports both one-time paym
     - [Creating One-Time Payments](#creating-one-time-payments)
   - [Subscription Management 📅](#subscription-management-)
   - [Webhook Handling 🎣](#webhook-handling-)
-  - [Key Features of StripeUtils 🌟](#key-features-of-stripeutils-)
   - [Contributing 🤝](#contributing-)
   - [License 📄](#license-)
 
@@ -55,6 +59,7 @@ When installed, this package will:
 
 - 💳 One-time payment processing
 - 🔄 Subscription management
+- 🛍️ Stripe Checkout integration
 - 👥 Customer management
 - 🎣 Webhook handling
 - 📝 TypeScript support
@@ -78,9 +83,7 @@ npx @reyco1/nestjs-stripe
 
 ## Basic Usage 💡
 
-You can access Stripe functionality in three ways:
-
-### 1. Using StripeService (Core Operations)
+### Using StripeService (Core Operations)
 
 ```typescript
 @Injectable()
@@ -96,7 +99,7 @@ export class PaymentService {
 }
 ```
 
-### 2. Using StripeUtils (Enhanced Data Handling)
+### Using StripeUtils (Enhanced Data Handling)
 
 ```typescript
 @Injectable()
@@ -120,7 +123,7 @@ export class PaymentService {
 }
 ```
 
-### 3. Using Raw Stripe Client
+### Using Raw Stripe Client
 
 ```typescript
 @Injectable()
@@ -161,6 +164,130 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
   ],
 })
 export class AppModule {}
+```
+
+## Checkout Sessions 🛍️
+
+### Payment Checkout
+
+Create one-time payment checkout sessions:
+
+```typescript
+const session = await stripeService.createPaymentCheckoutSession({
+  successUrl: 'https://example.com/success',
+  cancelUrl: 'https://example.com/cancel',
+  lineItems: [{
+    price: 'price_H5ggYwtDq4fbrJ',
+    quantity: 1
+  }],
+  // Or create a product on the fly:
+  // lineItems: [{
+  //   name: 'T-shirt',
+  //   amount: 2000,
+  //   currency: 'usd',
+  //   quantity: 1
+  // }],
+  paymentMethodTypes: ['card'],
+  shippingAddressCollection: {
+    allowed_countries: ['US', 'CA']
+  },
+  billingAddressCollection: 'required',
+  customerCreation: 'if_required'
+});
+```
+
+### Subscription Checkout
+
+Create subscription checkout sessions:
+
+```typescript
+const session = await stripeService.createSubscriptionCheckoutSession({
+  successUrl: 'https://example.com/success',
+  cancelUrl: 'https://example.com/cancel',
+  lineItems: [{
+    price: 'price_H5ggYwtDq4fbrJ', // recurring price ID
+    quantity: 1
+  }],
+  paymentMethodTypes: ['card'],
+  trialPeriodDays: 14,
+  subscriptionData: {
+    description: 'Premium Plan Subscription',
+    metadata: {
+      plan: 'premium'
+    }
+  },
+  customerCreation: 'if_required'
+});
+```
+
+### Customer Creation Behavior
+
+The customer creation behavior in checkout sessions depends on how you configure the `customerId` and `customerCreation` parameters:
+
+1. **Using Existing Customer**
+```typescript
+await stripeService.createPaymentCheckoutSession({
+  customerId: 'cus_123...', // Will use this customer
+  customerCreation: 'always', // This will be ignored
+  // ... other params
+});
+```
+
+2. **New Customer for One-time Payment**
+```typescript
+await stripeService.createPaymentCheckoutSession({
+  customerCreation: 'always', // Will create new customer
+  // ... other params
+});
+```
+
+3. **New Customer for Subscription**
+```typescript
+await stripeService.createSubscriptionCheckoutSession({
+  customerCreation: 'if_required', // Will create customer since needed for subscriptions
+  // ... other params
+});
+```
+
+4. **Default Behavior**
+- For one-time payments: Customer is only created if specifically requested
+- For subscriptions: Customer is always created if not provided
+- When `customerId` is provided: Existing customer is used and `customerCreation` is ignored
+
+### Configuration Options
+
+Common configuration options for checkout sessions:
+
+```typescript
+interface CheckoutSessionOptions {
+  // Required parameters
+  successUrl: string;          // Redirect after successful payment
+  cancelUrl: string;           // Redirect if customer cancels
+  lineItems: LineItem[];       // Products/prices to charge
+
+  // Customer handling
+  customerId?: string;         // Existing customer ID
+  customerEmail?: string;      // Pre-fill customer email
+  customerCreation?: 'always' | 'if_required';
+
+  // Payment configuration
+  paymentMethodTypes?: PaymentMethodType[]; // e.g., ['card', 'sepa_debit']
+  allowPromotionCodes?: boolean;
+  
+  // Address collection
+  billingAddressCollection?: 'required' | 'auto';
+  shippingAddressCollection?: {
+    allowed_countries: string[]; // e.g., ['US', 'CA']
+  };
+
+  // Customization
+  locale?: string;             // e.g., 'auto' or 'en'
+  submitType?: 'auto' | 'pay' | 'book' | 'donate';
+  
+  // Additional data
+  metadata?: Record<string, string | number>;
+  clientReferenceId?: string;
+}
 ```
 
 ## Utility Methods 🛠️
@@ -258,8 +385,6 @@ const formattedAmount = stripeUtils.formatAmount(1000, 'usd');
 ### Creating One-Time Payments
 
 ```typescript
-import { StripeService, StripeUtils } from '@reyco1/nestjs-stripe';
-
 @Injectable()
 export class PaymentService {
   constructor(
@@ -272,7 +397,6 @@ export class PaymentService {
       amount: 1000,
       currency: 'usd',
       metadata: {
-        userId: '123',
         orderId: 'ORDER_123'
       }
     });
@@ -306,7 +430,6 @@ export class SubscriptionService {
       customerId,
       priceId,
       metadata: {
-        userId: '123',
         plan: 'premium'
       }
     });
@@ -358,23 +481,12 @@ export class StripeWebhookController {
         // Handle new subscription
         break;
       }
-      // Handle other webhook events...
     }
 
     return { received: true };
   }
 }
 ```
-
-## Key Features of StripeUtils 🌟
-
-1. **Fresh Data**: Always attempts to fetch the most recent data from Stripe
-2. **Type Safety**: Full TypeScript support with proper interfaces
-3. **Error Handling**: Comprehensive error handling and logging
-4. **Edge Cases**: Proper handling of deleted customers and other edge cases
-5. **Date Handling**: Automatic conversion of UNIX timestamps to Date objects
-6. **Metadata Support**: Preserves and returns metadata across all objects
-7. **Standardized Statuses**: Consistent status strings across different Stripe objects
 
 ## Contributing 🤝
 
