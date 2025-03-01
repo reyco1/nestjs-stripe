@@ -14,3 +14,6 @@ export * from './dto/create-subscription.dto';
 export * from './dto/checkout-session.dto';
 
 export * from './types/checkout.types';
+
+// Export webhook functionality
+export * from './webhook/index';
