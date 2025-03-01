@@ -35,6 +35,16 @@ A powerful NestJS module for Stripe integration that supports both one-time paym
     - [Creating One-Time Payments](#creating-one-time-payments)
   - [Subscription Management 📅](#subscription-management-)
   - [Webhook Handling 🎣](#webhook-handling-)
+    - [1. Add the module to your application](#1-add-the-module-to-your-application)
+    - [2. Configure your NestJS application to handle raw body data](#2-configure-your-nestjs-application-to-handle-raw-body-data)
+    - [3. Create services with webhook handlers](#3-create-services-with-webhook-handlers)
+    - [4. Register your services in a module](#4-register-your-services-in-a-module)
+  - [Features](#features)
+  - [Best Practices](#best-practices)
+  - [Available Webhook Events](#available-webhook-events)
+    - [Customer \& Subscription Events](#customer--subscription-events)
+    - [Payment \& Invoice Events](#payment--invoice-events)
+    - [Checkout Events](#checkout-events)
   - [Contributing 🤝](#contributing-)
   - [License 📄](#license-)
 
@@ -445,48 +455,148 @@ export class SubscriptionService {
 
 ## Webhook Handling 🎣
 
+### 1. Add the module to your application
+
+In your `app.module.ts` (or appropriate module):
+
 ```typescript
-@Controller('stripe/webhooks')
-export class StripeWebhookController {
-  constructor(
-    private readonly stripeService: StripeService,
-    private readonly stripeUtils: StripeUtils
-  ) {}
+import { Module } from '@nestjs/common';
+import { StripeModule, StripeWebhookModule } from '@reyco1/nestjs-stripe';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
-  @Post()
-  async handleWebhook(
-    @Headers('stripe-signature') signature: string,
-    @Req() request: Request
-  ) {
-    const event = await this.stripeService.createWebhookEvent(
-      request.body,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
+@Module({
+  imports: [
+    ConfigModule.forRoot(),
+    StripeModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        apiKey: configService.get('STRIPE_API_KEY'),
+        apiVersion: configService.get('STRIPE_API_VERSION'),
+        webhookSecret: configService.get('STRIPE_WEBHOOK_SECRET'),
+      }),
+    }),
+    StripeWebhookModule.forRoot(),
+    // ... other modules
+  ],
+})
+export class AppModule {}
+```
 
-    switch (event.type) {
-      case 'payment_intent.succeeded': {
-        const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        const [customer, paymentMethod] = await Promise.all([
-          this.stripeUtils.getCustomerDetails(paymentIntent),
-          this.stripeUtils.getPaymentMethodDetails(paymentIntent)
-        ]);
-        // Handle successful payment
-        break;
-      }
-      
-      case 'customer.subscription.created': {
-        const subscription = event.data.object as Stripe.Subscription;
-        const details = await this.stripeUtils.getSubscriptionDetails(subscription);
-        // Handle new subscription
-        break;
-      }
-    }
+### 2. Configure your NestJS application to handle raw body data
 
-    return { received: true };
+In your `main.ts`:
+
+```typescript
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+import * as bodyParser from 'body-parser';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  
+  // Important: Configure raw body parser for Stripe webhooks
+  app.use(
+    bodyParser.json({
+      verify: (req: any, res, buf) => {
+        if (req.originalUrl.startsWith('/stripe/webhook')) {
+          req.rawBody = buf;
+        }
+      },
+    })
+  );
+  
+  await app.listen(3000);
+}
+bootstrap();
+```
+
+### 3. Create services with webhook handlers
+
+Create services with methods decorated with `@StripeWebhookHandler`:
+
+```typescript
+import { Injectable, Logger } from '@nestjs/common';
+import { StripeWebhookHandler } from '@reyco1/nestjs-stripe';
+import Stripe from 'stripe';
+
+@Injectable()
+export class SubscriptionService {
+  private readonly logger = new Logger(SubscriptionService.name);
+
+  @StripeWebhookHandler('customer.subscription.created')
+  async handleSubscriptionCreated(event: Stripe.Event): Promise<void> {
+    const subscription = event.data.object as Stripe.Subscription;
+    // Process subscription creation
+  }
+
+  @StripeWebhookHandler('customer.subscription.updated')
+  async handleSubscriptionUpdate(event: Stripe.Event): Promise<void> {
+    const subscription = event.data.object as Stripe.Subscription;
+    // Process subscription update
+  }
+
+  @StripeWebhookHandler('customer.subscription.deleted')
+  async handleSubscriptionDelete(event: Stripe.Event): Promise<void> {
+    const subscription = event.data.object as Stripe.Subscription;
+    // Process subscription deletion
   }
 }
 ```
+
+### 4. Register your services in a module
+
+```typescript
+import { Module } from '@nestjs/common';
+import { SubscriptionService } from './subscription.service';
+
+@Module({
+  providers: [SubscriptionService],
+})
+export class SubscriptionsModule {}
+```
+
+## Features
+
+- **Declarative Approach**: Use the `@StripeWebhookHandler` decorator to specify which methods handle which Stripe events.
+- **Automatic Discovery**: The module automatically discovers and registers all webhook handlers during application bootstrap.
+- **Multiple Handlers**: Multiple methods can handle the same event type.
+- **Type Safety**: Fully typed with TypeScript, leveraging Stripe's TypeScript definitions.
+- **Error Handling**: Built-in error handling with detailed logging.
+- **Signature Verification**: Automatically verifies Stripe webhook signatures.
+
+## Best Practices
+
+1. **Service Organization**: Group related webhook handlers in dedicated services (e.g., `SubscriptionService`, `PaymentService`).
+2. **Error Handling**: Add try/catch blocks in your handlers to gracefully handle errors.
+3. **Idempotency**: Implement idempotency checks to handle potential duplicate webhook events from Stripe.
+4. **Testing**: Use Stripe's webhook testing tools to simulate webhook events.
+
+## Available Webhook Events
+
+Here are some common Stripe webhook events you might want to handle:
+
+### Customer & Subscription Events
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `customer.created`
+- `customer.updated`
+- `customer.deleted`
+
+### Payment & Invoice Events
+- `payment_intent.succeeded`
+- `payment_intent.payment_failed`
+- `invoice.paid`
+- `invoice.payment_failed`
+- `charge.succeeded`
+- `charge.failed`
+- `charge.refunded`
+
+### Checkout Events
+- `checkout.session.completed`
+- `checkout.session.expired`
+
+Check the [Stripe API documentation](https://stripe.com/docs/api/events/types) for a complete list of event types.
 
 ## Contributing 🤝
 
