@@ -45,6 +45,13 @@ A powerful NestJS module for Stripe integration that supports both one-time paym
     - [Customer \& Subscription Events](#customer--subscription-events)
     - [Payment \& Invoice Events](#payment--invoice-events)
     - [Checkout Events](#checkout-events)
+  - [Connected Accounts 🌐](#connected-accounts-)
+    - [Basic Usage](#basic-usage)
+    - [Adding Bank Accounts](#adding-bank-accounts)
+    - [Processing Payments for Connected Accounts](#processing-payments-for-connected-accounts)
+    - [Creating Checkout Sessions for Connected Accounts](#creating-checkout-sessions-for-connected-accounts)
+    - [Managing Connected Accounts](#managing-connected-accounts)
+    - [Webhook Handling for Connected Accounts](#webhook-handling-for-connected-accounts)
   - [Contributing 🤝](#contributing-)
   - [License 📄](#license-)
 
@@ -597,6 +604,146 @@ Here are some common Stripe webhook events you might want to handle:
 - `checkout.session.expired`
 
 Check the [Stripe API documentation](https://stripe.com/docs/api/events/types) for a complete list of event types.
+
+## Connected Accounts 🌐
+
+The Connected Accounts module allows you to create and manage Stripe Connect accounts, enabling platforms to facilitate payments between customers and service providers/merchants.
+
+### Basic Usage
+
+```typescript
+@Injectable()
+export class MerchantService {
+  constructor(private readonly connectedAccountsService: ConnectedAccountsService) {}
+  
+  async onboardMerchant(merchantData: CreateConnectedAccountDto) {
+    // 1. Create a connected account
+    const account = await this.connectedAccountsService.createConnectedAccount({
+      email: merchantData.email,
+      country: merchantData.country,
+      capabilities: {
+        card_payments: { requested: true },
+        transfers: { requested: true }
+      }
+    });
+    
+    // 2. Generate an onboarding link
+    const accountLink = await this.connectedAccountsService.createAccountLink({
+      accountId: account.id,
+      refreshUrl: 'https://example.com/onboarding/refresh',
+      returnUrl: 'https://example.com/onboarding/complete',
+      type: 'account_onboarding'
+    });
+    
+    return {
+      accountId: account.id,
+      onboardingUrl: accountLink.url
+    };
+  }
+}
+```
+
+### Adding Bank Accounts
+
+```typescript
+async addBankAccount(accountId: string, bankData: CreateBankAccountDto) {
+  return this.connectedAccountsService.createBankAccount(accountId, {
+    country: bankData.country,
+    currency: bankData.currency,
+    accountNumber: bankData.accountNumber,
+    routingNumber: bankData.routingNumber,
+    accountHolderName: bankData.accountHolderName
+  });
+}
+```
+
+### Processing Payments for Connected Accounts
+
+```typescript
+// Create a payment that automatically transfers funds to the connected account
+async processPayment(accountId: string, amount: number) {
+  return this.connectedAccountsService.createPaymentIntent(
+    amount,
+    'usd',
+    accountId,
+    150 // $1.50 platform fee
+  );
+}
+
+// Create a transfer to a connected account
+async transferFunds(accountId: string, amount: number) {
+  return this.connectedAccountsService.createTransfer(
+    amount,
+    'usd',
+    accountId,
+    { description: 'Monthly payout' }
+  );
+}
+```
+
+### Creating Checkout Sessions for Connected Accounts
+
+```typescript
+async createConnectedCheckout(accountId: string) {
+  return this.connectedAccountsService.createConnectedAccountCheckoutSession({
+    connectedAccountId: accountId,
+    applicationFeeAmount: 250, // $2.50 platform fee
+    successUrl: 'https://example.com/success',
+    cancelUrl: 'https://example.com/cancel',
+    lineItems: [{
+      name: 'Service fee',
+      amount: 5000, // $50.00
+      currency: 'usd',
+      quantity: 1
+    }]
+  });
+}
+```
+
+### Managing Connected Accounts
+
+```typescript
+// List all connected accounts
+async getAllMerchants(limit = 10, startingAfter?: string) {
+  return this.connectedAccountsService.listConnectedAccounts(limit, startingAfter);
+}
+
+// Update a connected account
+async updateMerchant(accountId: string, data: Partial<CreateConnectedAccountDto>) {
+  return this.connectedAccountsService.updateConnectedAccount(accountId, data);
+}
+
+// Create a payout for a connected account
+async createPayout(accountId: string, amount: number) {
+  return this.connectedAccountsService.createPayout(accountId, amount, 'usd');
+}
+```
+
+### Webhook Handling for Connected Accounts
+
+Create handlers for important Connect events:
+
+```typescript
+@Injectable()
+export class ConnectedAccountWebhookHandler {
+  private readonly logger = new Logger(ConnectedAccountWebhookHandler.name);
+
+  @StripeWebhookHandler('account.updated')
+  async handleAccountUpdate(event: Stripe.Event): Promise<void> {
+    const account = event.data.object as Stripe.Account;
+    // Check if account is now fully onboarded
+    if (account.charges_enabled && account.payouts_enabled) {
+      // Update merchant status in your database
+    }
+  }
+
+  @StripeWebhookHandler('account.application.deauthorized')
+  async handleAccountDeauthorized(event: Stripe.Event): Promise<void> {
+    const application = event.data.object as any;
+    // Handle when a connected account removes your platform's access
+  }
+}
+```
 
 ## Contributing 🤝
 

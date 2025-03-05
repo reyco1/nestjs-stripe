@@ -17,3 +17,11 @@ export * from './types/checkout.types';
 
 // Export webhook functionality
 export * from './webhook/index';
+
+// Add exports for connected accounts module
+export * from './connected-accounts/connected-accounts.module';
+export * from './connected-accounts/connected-accounts.service';
+export * from './connected-accounts/dto/create-connected-account.dto';
+export * from './connected-accounts/dto/create-account-link.dto';
+export * from './connected-accounts/dto/create-bank-account.dto';
+export * from './connected-accounts/dto/connected-account-checkout.dto';

@@ -293,6 +293,66 @@ export class StripeUtils implements StripeUtilitiesInterface {
         }
     }
 
+    // In src/utils/stripe.utils.ts
+
+    async getConnectedAccountDetails(accountId: string): Promise<{
+        id: string;
+        email?: string;
+        businessType?: string;
+        chargesEnabled: boolean;
+        payoutsEnabled: boolean;
+        requirements?: {
+            currentlyDue: string[];
+            eventuallyDue: string[];
+            pendingVerification: string[];
+        };
+        bankAccounts?: Array<{
+            id: string;
+            bankName?: string;
+            last4: string;
+            country: string;
+            currency: string;
+            status: string;
+        }>;
+    }> {
+        try {
+            const account = await this.stripeClient.accounts.retrieve(accountId, {
+                expand: ['external_accounts']
+            });
+
+            const bankAccounts = account.external_accounts?.data
+                .filter(item => item.object === 'bank_account')
+                .map(item => {
+                    const bankAccount = item as Stripe.BankAccount;
+                    return {
+                        id: bankAccount.id,
+                        bankName: bankAccount.bank_name,
+                        last4: bankAccount.last4,
+                        country: bankAccount.country,
+                        currency: bankAccount.currency,
+                        status: bankAccount.status,
+                    };
+                });
+
+            return {
+                id: account.id,
+                email: account.email,
+                businessType: account.business_type,
+                chargesEnabled: account.charges_enabled,
+                payoutsEnabled: account.payouts_enabled,
+                requirements: {
+                    currentlyDue: account.requirements?.currently_due,
+                    eventuallyDue: account.requirements?.eventually_due,
+                    pendingVerification: account.requirements?.pending_verification,
+                },
+                bankAccounts
+            };
+        } catch (error) {
+            this.logger.error(`Error getting connected account details: ${error.message}`);
+            throw error;
+        }
+    }
+
     // Type guards
     private isPaymentIntent(object: any): object is Stripe.PaymentIntent {
         return object?.object === 'payment_intent';
